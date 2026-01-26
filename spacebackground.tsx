@@ -45,7 +45,7 @@ const SpaceBackground = () => {
     const sound = new THREE.Audio(listener);
     const audioLoader = new THREE.AudioLoader();
 
-    audioLoader.load('/The Imperial March.mp3', (buffer) => {
+    audioLoader.load('./The Imperial March.mp3', (buffer) => {
       sound.setBuffer(buffer);
       sound.setLoop(true);
       sound.setVolume(0.4);
@@ -71,7 +71,7 @@ const SpaceBackground = () => {
     // Carregar Nave
     const loader = new GLTFLoader();
     loader.load(
-      '/destruidor_imperial.glb',
+      './destruidor_imperial.glb',
       (gltf) => {
         const model = gltf.scene;
         model.scale.set(0.5, 0.5, 0.5);
