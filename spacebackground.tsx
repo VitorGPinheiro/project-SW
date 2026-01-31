@@ -82,7 +82,7 @@ const SpaceBackground = () => {
     const loader = new GLTFLoader();
     loader.load('./destruidor_imperial.glb',(gltf) => {
         const model = gltf.scene;
-        model.scale.set(0.5, 0.5, 0.5);
+        model.scale.set(0.1, 0.1, 0.1);
         model.position.set(0.1, -2.5, -310.0);
         model.rotation.set(0.9, 0, 0);
         spaceshipRef.current = model;
@@ -92,16 +92,16 @@ const SpaceBackground = () => {
    const newexecutor = new GLTFLoader();
     newexecutor.load('./ExecutorClassStarDestroyer.glb',(gltf: any) => {
       const newexe =gltf.scene;
-      newexe.scale.set(10,10,10);
-      newexe.position.set(0,0,0);
-      newexe.rotation.set(0, 0, 0);
+      newexe.scale.set(2,2,2);
+      newexe.position.set(2,2,-300.0);
+      newexe.rotation.set(-4, 0, 0);
       scene.add(newexe);});
     
     const oldexecutor = new GLTFLoader();
     oldexecutor.load('./oldexecutor.glb',(gltf: any) => {
       const oldexe =gltf.scene;
-      oldexe.scale.set(10,10,10);
-      oldexe.position.set(0,0,0);
+      oldexe.scale.set(4,4,4);
+      oldexe.position.set(0,0,-320.0);
       oldexe.rotation.set(0, 0, 0);
       scene.add(oldexe);});
     
