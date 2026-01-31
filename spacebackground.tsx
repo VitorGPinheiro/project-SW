@@ -92,17 +92,17 @@ const SpaceBackground = () => {
    const newexecutor = new GLTFLoader();
     newexecutor.load('./ExecutorClassStarDestroyer.glb',(gltf: any) => {
       const newexe =gltf.scene;
-      newexe.scale.set(2,2,2);
-      newexe.position.set(2,2,-300.0);
-      newexe.rotation.set(-4, 0, 0);
+      newexe.scale.set(0.5,0.5,0.5);
+      newexe.position.set(2,2,-230.0);
+      newexe.rotation.set(1, 2, 0);
       scene.add(newexe);});
     
     const oldexecutor = new GLTFLoader();
     oldexecutor.load('./oldexecutor.glb',(gltf: any) => {
       const oldexe =gltf.scene;
       oldexe.scale.set(4,4,4);
-      oldexe.position.set(0,0,-320.0);
-      oldexe.rotation.set(0, 0, 0);
+      oldexe.position.set(28,0,-230.0);
+      oldexe.rotation.set(1,1.5,0);
       scene.add(oldexe);});
     
 
