@@ -9,12 +9,19 @@ const SpaceBackground = () => {
   const spaceshipRef = useRef<THREE.Group | null>(null);
   const isAnimatingRef = useRef(false);
 
-  useEffect(() => {
+  useEffect(() => 
+    
+    {let scrollY = 0;
+    const handleScroll = () => {
+      scrollY = window.scrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll);
+
     if (!mountRef.current) return;
 
     // Pontos de animação
     const startPosition = new THREE.Vector3(0, -2, -310);
-    const targetPosition = new THREE.Vector3(0, 15, 300);
 
     // Configuração da Cena
     const scene = new THREE.Scene();
@@ -62,7 +69,7 @@ const SpaceBackground = () => {
     starGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     const starMaterial = new THREE.PointsMaterial({
       color: 0xffffff,
-      size: 0.8,
+      size: 0.2,
       sizeAttenuation: true
     });
     const starMesh = new THREE.Points(starGeometry, starMaterial);
@@ -83,47 +90,56 @@ const SpaceBackground = () => {
       undefined,
       (error) => console.error('Erro ao carregar a nave:', error)
     );
-
     // Loop de Animação
     let animationId: number;
     const animate = () => {
       animationId = requestAnimationFrame(animate);
 
       starMesh.rotation.y += 0.0004;
-      starMesh.rotation.x += 0.0001;
-
-      if (isAnimatingRef.current && spaceshipRef.current) {
-        spaceshipRef.current.position.lerp(targetPosition, 0.001);
-        spaceshipRef.current.rotation.x = THREE.MathUtils.lerp(
-          spaceshipRef.current.rotation.x, 
-          -0.2, 
-          0.002
-        );
+      if (spaceshipRef.current) {
+        // 1. A câmera desce conforme você rola (scrollY * fator)
+        // Começa em 0 e vai ficando negativo para "descer"
+        camera.position.y = -(scrollY * 0.05); 
+        
+        // 2. A câmera continua olhando para a nave
+        // Isso faz com que você veja a parte de baixo dela conforme desce
+        camera.lookAt(spaceshipRef.current.position);
       }
+
       renderer.render(scene, camera);
+
+      //Animação da câmera
+
+
     };
 
-    const handleResize = () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    };
-
-    window.addEventListener('resize', handleResize);
     animate();
 
-    // Cleanup
+    // --- ESSA PARTE ABAIXO É O QUE IMPEDE O SITE DE FICAR PESADO ---
     return () => {
-      window.removeEventListener('resize', handleResize);
-      cancelAnimationFrame(animationId);
+      cancelAnimationFrame(animationId); // Para o loop ao sair da página
+      
+      // Limpa a memória da GPU
+      starGeometry.dispose();
+      starMaterial.dispose();
+      renderer.dispose();
+
       if (mountRef.current?.contains(renderer.domElement)) {
         mountRef.current.removeChild(renderer.domElement);
       }
-      starGeometry.dispose();
-      starMaterial.dispose();
-      if (sound.isPlaying) sound.stop();
+      
+      // Se a nave estiver carregada, limpa ela também
+      if (spaceshipRef.current) {
+        spaceshipRef.current.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            (child as THREE.Mesh).geometry.dispose();
+            ((child as THREE.Mesh).material as THREE.Material).dispose();
+          }
+        });
+      }
     };
-  }, []);
+
+  },[]); // O array vazio garante que isso rode APENAS UMA VEZ
 
   const handleStart = () => {
     if (audioRef.current && !isPlaying) {
@@ -133,10 +149,12 @@ const SpaceBackground = () => {
     }
   };
 
+
   // Estilos
   const canvasStyle: React.CSSProperties = {
     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1, background: '#000'
   };
+  
 
   const overlayStyle: React.CSSProperties = {
     position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
