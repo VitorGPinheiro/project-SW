@@ -21,11 +21,11 @@ const SpaceBackground = () => {
     if (!mountRef.current) return;
 
     // Pontos de animação
-    const startPosition = new THREE.Vector3(0, -2, -310);
+    
 
     // Configuração da Cena
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 5000);
     camera.position.z = 50;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -75,21 +75,39 @@ const SpaceBackground = () => {
     const starMesh = new THREE.Points(starGeometry, starMaterial);
     scene.add(starMesh);
 
+
     // Carregar Nave
+
+
     const loader = new GLTFLoader();
-    loader.load(
-      './destruidor_imperial.glb',
-      (gltf) => {
+    loader.load('./destruidor_imperial.glb',(gltf) => {
         const model = gltf.scene;
         model.scale.set(0.5, 0.5, 0.5);
-        model.position.copy(startPosition);
+        model.position.set(0.1, -2.5, -310.0);
         model.rotation.set(0.9, 0, 0);
         spaceshipRef.current = model;
         scene.add(model);
-      },
-      undefined,
-      (error) => console.error('Erro ao carregar a nave:', error)
-    );
+      },undefined,(error) => console.error ('Erro ao carregar a nave:', error));
+
+   const newexecutor = new GLTFLoader();
+    newexecutor.load('./ExecutorClassStarDestroyer.glb',(gltf: any) => {
+      const newexe =gltf.scene;
+      newexe.scale.set(10,10,10);
+      newexe.position.set(0,0,0);
+      newexe.rotation.set(0, 0, 0);
+      scene.add(newexe);});
+    
+    const oldexecutor = new GLTFLoader();
+    oldexecutor.load('./oldexecutor.glb',(gltf: any) => {
+      const oldexe =gltf.scene;
+      oldexe.scale.set(10,10,10);
+      oldexe.position.set(0,0,0);
+      oldexe.rotation.set(0, 0, 0);
+      scene.add(oldexe);});
+    
+
+
+
     // Loop de Animação
     let animationId: number;
     const animate = () => {
@@ -171,16 +189,30 @@ const SpaceBackground = () => {
 
   return (
     <>
+      {/* O Canvas fica sempre ao fundo */}
       <div ref={mountRef} style={canvasStyle} />
-      {!isPlaying && (
+
+      {/* Se NÃO estiver tocando, mostra o botão de início */}
+      {!isPlaying ? (
         <div style={overlayStyle}>
           <button style={buttonStyle} onClick={handleStart}>
             Go for darkside
           </button>
         </div>
+      ) : (
+        /* Se ESTIVER tocando, mostra a div que permite o scroll */
+        <div style={{ height: '2000vh', width: '100%', position: 'relative' }}>
+          {/* Você pode colocar textos aqui dentro. 
+             Use position: absolute ou sticky neles se quiser que apareçam 
+             em pontos específicos da rolagem.
+          */}
+        </div>
       )}
     </>
   );
+
+
+
 };
 
 export default SpaceBackground;
