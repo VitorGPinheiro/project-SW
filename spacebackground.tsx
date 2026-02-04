@@ -7,11 +7,11 @@ const SpaceBackground = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const audioRef = useRef<THREE.Audio | null>(null);
   const spaceshipRef = useRef<THREE.Group | null>(null);
-  const isAnimatingRef = useRef(false);
+  // Ref para guardar TODOS os objetos 3D e limpar depois
+  const sceneObjectsRef = useRef<THREE.Group[]>([]); 
 
-  useEffect(() => 
-    
-    {let scrollY = 0;
+  useEffect(() => {
+    let scrollY = 0;
     const handleScroll = () => {
       scrollY = window.scrollY;
     };
@@ -20,18 +20,25 @@ const SpaceBackground = () => {
 
     if (!mountRef.current) return;
 
-    // Pontos de animação
-    
-
-    // Configuração da Cena
+    // --- OTIMIZAÇÃO 1: Configuração da Cena e Renderer ---
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 5000);
+    
+    // Diminuir o Far da câmera se possível (de 5000 para 1000 ajuda no Z-buffer)
+    const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 2000);
     camera.position.z = 50;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ 
+        antialias: true, // Se quiser MAIS performance, mude para false (mas fica serrilhado)
+        powerPreference: "high-performance" // Pede prioridade para a GPU
+    });
+    
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    
+    // --- OTIMIZAÇÃO CRÍTICA: Limitar o Pixel Ratio ---
+    // Isso impede que celulares retina renderizem em 4k desnecessariamente
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    
     mountRef.current.appendChild(renderer.domElement);
 
     // Iluminação
@@ -52,7 +59,7 @@ const SpaceBackground = () => {
     const sound = new THREE.Audio(listener);
     const audioLoader = new THREE.AudioLoader();
 
-    audioLoader.load('./The Imperial March.mp3', (buffer) => {
+    audioLoader.load('./SwOstFinale.mp3', (buffer) => {
       sound.setBuffer(buffer);
       sound.setLoop(true);
       sound.setVolume(0.4);
@@ -60,7 +67,7 @@ const SpaceBackground = () => {
     });
 
     // Estrelas
-    const starsCount = 10000;
+    const starsCount = 8000; // Reduzi levemente de 10k para 8k (quase imperceptível visualmente)
     const positions = new Float32Array(starsCount * 3);
     for (let i = 0; i < starsCount * 3; i++) {
       positions[i] = (Math.random() - 0.5) * 2000;
@@ -75,37 +82,41 @@ const SpaceBackground = () => {
     const starMesh = new THREE.Points(starGeometry, starMaterial);
     scene.add(starMesh);
 
-
-    // Carregar Nave
-
-
+    // --- OTIMIZAÇÃO 2: Reutilizar o Loader e Gerenciar Modelos ---
     const loader = new GLTFLoader();
-    loader.load('./destruidor_imperial.glb',(gltf) => {
-        const model = gltf.scene;
-        model.scale.set(0.1, 0.1, 0.1);
-        model.position.set(0.1, -2.5, -310.0);
-        model.rotation.set(0.9, 0, 0);
-        spaceshipRef.current = model;
-        scene.add(model);
-      },undefined,(error) => console.error ('Erro ao carregar a nave:', error));
-
-   const newexecutor = new GLTFLoader();
-    newexecutor.load('./ExecutorClassStarDestroyer.glb',(gltf: any) => {
-      const newexe =gltf.scene;
-      newexe.scale.set(0.5,0.5,0.5);
-      newexe.position.set(2,2,-230.0);
-      newexe.rotation.set(1, 2, 0);
-      scene.add(newexe);});
     
-    const oldexecutor = new GLTFLoader();
-    oldexecutor.load('./oldexecutor.glb',(gltf: any) => {
-      const oldexe =gltf.scene;
-      oldexe.scale.set(4,4,4);
-      oldexe.position.set(28,0,-230.0);
-      oldexe.rotation.set(1,1.5,0);
-      scene.add(oldexe);});
-    
+    // Função auxiliar para carregar e configurar modelos
+    const loadModel = (path: string, scale: number, pos: [number, number, number], rot: [number, number, number], isMainShip = false) => {
+        loader.load(path, (gltf) => {
+            const model = gltf.scene;
+            model.scale.set(scale, scale, scale);
+            model.position.set(...pos);
+            model.rotation.set(...rot);
+            
+            // Otimização de renderização do objeto
+            model.traverse((child) => {
+                if ((child as THREE.Mesh).isMesh) {
+                    // Evita cálculos desnecessários de sombra se não estiver usando
+                    child.castShadow = false; 
+                    child.receiveShadow = false;
+                }
+            });
 
+            scene.add(model);
+            
+            // Adiciona ao array de referência para limpeza
+            sceneObjectsRef.current.push(model);
+
+            if (isMainShip) {
+                spaceshipRef.current = model;
+            }
+        }, undefined, (error) => console.error(`Erro ao carregar ${path}:`, error));
+    };
+
+    // Carregando os 3 modelos com a função auxiliar
+    loadModel('./DI.glb', 0.1, [0.1, -2.5, -310.0], [0.9, 0, 0], true);
+    loadModel('./ECD.glb', 0.5, [2, 2, -230.0], [1, 2, 0]);
+    loadModel('./OE.glb', 4, [28, 0, -230.0], [1, 1.5, 0]);
 
 
     // Loop de Animação
@@ -114,30 +125,25 @@ const SpaceBackground = () => {
       animationId = requestAnimationFrame(animate);
 
       starMesh.rotation.y += 0.0004;
+      
       if (spaceshipRef.current) {
-        // 1. A câmera desce conforme você rola (scrollY * fator)
-        // Começa em 0 e vai ficando negativo para "descer"
+        // Interpolação suave (Lerp) deixa o movimento menos "travado"
+        // Mas sua lógica atual é leve, mantive ela:
         camera.position.y = -(scrollY * 0.05); 
-        
-        // 2. A câmera continua olhando para a nave
-        // Isso faz com que você veja a parte de baixo dela conforme desce
         camera.lookAt(spaceshipRef.current.position);
       }
 
       renderer.render(scene, camera);
-
-      //Animação da câmera
-
-
     };
 
     animate();
 
-    // --- ESSA PARTE ABAIXO É O QUE IMPEDE O SITE DE FICAR PESADO ---
+    // --- CLEANUP (LIMPEZA) ---
     return () => {
-      cancelAnimationFrame(animationId); // Para o loop ao sair da página
+      window.removeEventListener('scroll', handleScroll);
+      cancelAnimationFrame(animationId);
       
-      // Limpa a memória da GPU
+      // Dispose de geometrias básicas
       starGeometry.dispose();
       starMaterial.dispose();
       renderer.dispose();
@@ -146,40 +152,44 @@ const SpaceBackground = () => {
         mountRef.current.removeChild(renderer.domElement);
       }
       
-      // Se a nave estiver carregada, limpa ela também
-      if (spaceshipRef.current) {
-        spaceshipRef.current.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            (child as THREE.Mesh).geometry.dispose();
-            ((child as THREE.Mesh).material as THREE.Material).dispose();
-          }
-        });
-      }
+      // Limpeza PROFUNDA de todos os modelos carregados
+      sceneObjectsRef.current.forEach((model) => {
+          scene.remove(model);
+          model.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              (child as THREE.Mesh).geometry.dispose();
+              
+              // Verifica se é um array de materiais ou único
+              const material = (child as THREE.Mesh).material;
+              if (Array.isArray(material)) {
+                  material.forEach(m => m.dispose());
+              } else {
+                  (material as THREE.Material).dispose();
+              }
+            }
+          });
+      });
+      sceneObjectsRef.current = []; // Zera o array
     };
 
-  },[]); // O array vazio garante que isso rode APENAS UMA VEZ
+  },[]); 
 
   const handleStart = () => {
     if (audioRef.current && !isPlaying) {
       audioRef.current.play();
       setIsPlaying(true);
-      isAnimatingRef.current = true;
     }
   };
 
-
-  // Estilos
+  // ... (Mantenha seus estilos iguais)
   const canvasStyle: React.CSSProperties = {
     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', zIndex: -1, background: '#000'
   };
-  
-
   const overlayStyle: React.CSSProperties = {
     position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
     backgroundColor: '#000', display: 'flex', justifyContent: 'center',
     alignItems: 'center', zIndex: 100
   };
-
   const buttonStyle: React.CSSProperties = {
     padding: '20px 40px', backgroundColor: 'transparent', color: '#FFE81F',
     border: '2px solid #FFE81F', borderRadius: '4px', cursor: 'pointer',
@@ -189,10 +199,7 @@ const SpaceBackground = () => {
 
   return (
     <>
-      {/* O Canvas fica sempre ao fundo */}
       <div ref={mountRef} style={canvasStyle} />
-
-      {/* Se NÃO estiver tocando, mostra o botão de início */}
       {!isPlaying ? (
         <div style={overlayStyle}>
           <button style={buttonStyle} onClick={handleStart}>
@@ -200,19 +207,12 @@ const SpaceBackground = () => {
           </button>
         </div>
       ) : (
-        /* Se ESTIVER tocando, mostra a div que permite o scroll */
         <div style={{ height: '2000vh', width: '100%', position: 'relative' }}>
-          {/* Você pode colocar textos aqui dentro. 
-             Use position: absolute ou sticky neles se quiser que apareçam 
-             em pontos específicos da rolagem.
-          */}
+          {/* Conteúdo scrollável aqui */}
         </div>
       )}
     </>
   );
-
-
-
 };
 
 export default SpaceBackground;
