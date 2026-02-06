@@ -18,7 +18,7 @@ const SpaceBackground = () => {
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(35, window.innerWidth/window.innerHeight, 0.1, 2000);
     camera.position.z = 50;
-    
+
     const renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -29,65 +29,79 @@ const SpaceBackground = () => {
     const sun = new THREE.DirectionalLight(0xffffff, 2.5); sun.position.set(5,5,5); scene.add(sun);
     const fill = new THREE.PointLight(0x0000ff, 1.5); fill.position.set(-5,-5,-2); scene.add(fill);
 
-    // Estrelas
-    const pos = new Float32Array(24000); // 8000 * 3
-    for(let i=0; i<24000; i++) pos[i] = (Math.random()-0.5)*2000;
-    const starMesh = new THREE.Points(
-      new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(pos, 3)), 
-      new THREE.PointsMaterial({color:0xffffff, size:0.2})
-    );
+    // Estrelas (Otimizado: Uma única geometria)
+    const starGeo = new THREE.BufferGeometry();
+    const pos = new Float32Array(24000);
+    for (let i = 0; i < 24000; i++) pos[i] = (Math.random() - 0.5) * 2000;
+    starGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const starMesh = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.2 }));
     scene.add(starMesh);
-
     
-    const load = (path:string,s:number,pos:[number,number,number],rot?:[number, number, number],isMain:boolean = false) => {
-        if(!path) return;
-        loader.load(path, (g) => {
-            const m = g.scene; 
-            m.scale.set(s,s,s); 
-            m.position.set(...pos);
-            if(rot) m.rotation.set(...rot);
-            
-            scene.add(m); 
-            objsRef.current.push(m);
-            if(isMain) shipRef.current = m;
-        });
+    const load = (path: string, s: number, pos: [number, number, number], rot?: [number, number, number], isMain = false) => {
+      loader.load(path, (g) => {
+        const m = g.scene;
+        m.scale.set(s, s, s);
+        m.position.set(...pos);
+        if (rot) m.rotation.set(...rot);
+        scene.add(m);
+        objsRef.current.push(m);
+        if (isMain) shipRef.current = m;
+      });
     };
 
     // Chamadas
-    load('', 0.1, [0,0,0]);
-
-    // Loop
-    let raf: number; // Tipando a variável da animação
+    load('./stardestroyer.glb', 1, [0,0,0], [0.5, 3.2, 0]);
+    load('./oldexecutor(100k).glb', 1, [-10,-2,10], [3.0, 20.0, 4.0]);
+    //Loop
+    let raf: number;
     const animate = () => {
-        raf = requestAnimationFrame(animate);
-        starMesh.rotation.y += 0.0004;
-        if(shipRef.current) { 
-          camera.position.y = -(window.scrollY * 0.05); 
-          camera.lookAt(shipRef.current.position); 
-        }
-        renderer.render(scene, camera);
+      raf = requestAnimationFrame(animate);
+      starMesh.rotation.y += 0.0004;
+      if (shipRef.current) {
+        camera.position.y = -(window.scrollY * 0.05);
+        camera.lookAt(shipRef.current.position);
+      }
+      renderer.render(scene, camera);
     };
     animate();
 
+   // --- FUNÇÃO DE LIMPEZA (CLEANUP) COMPLETA ---
     return () => {
-        cancelAnimationFrame(raf); 
-        renderer.dispose();
-        if(mountRef.current) mountRef.current.innerHTML = '';
-        objsRef.current.forEach(o => scene.remove(o));};},[]);
-        
+      cancelAnimationFrame(raf);
+      
+      // 1. Limpar Geometria das Estrelas
+      starGeo.dispose();
+      (starMesh.material as THREE.Material).dispose();
 
-    
-  
+      // 2. Limpar Modelos 3D (Geometrias e Texturas)
+      objsRef.current.forEach((obj) => {
+        obj.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.geometry.dispose(); // Libera Geometria na GPU
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach(m => m.dispose());
+            } else {
+              mesh.material.dispose(); // Libera Material na GPU
+            }
+          }
+        });
+        scene.remove(obj);
+      });
 
-  // Mudança 3: Função de Tocar Áudio HTML5
+      // 3. Limpar Renderer e DOM
+      renderer.dispose();
+      if (mountRef.current) mountRef.current.innerHTML = '';
+      objsRef.current = []; // Reseta a lista para o próximo ciclo
+    };
+  }, []);
+
   const handleStart = () => {
     if (audioTagRef.current) {
-        audioTagRef.current.volume = 0.4;
-        audioTagRef.current.play()
-            .then(() => setPlaying(true))
-            .catch(e => console.error("Erro ao tocar:", e));
+      audioTagRef.current.volume = 0.4;
+      audioTagRef.current.play().then(() => setPlaying(true)).catch(e => console.error(e));
     }
-  };
+  }; 
 
 return (
     <>
